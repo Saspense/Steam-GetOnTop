@@ -188,7 +188,7 @@ $steamConfig = ConvertFrom-VDF (Get-Content "$($steamPath)\Config\Config.vdf")
 $steamUsers = ConvertFrom-VDF (Get-Content "$($steamPath)\Config\LoginUsers.vdf")
  
 $userTable.BeginLoadData()
-ForEach ( $user in ($steamConfig.InstallConfigStore.AuthorizedDevice.PSObject.Members | Where-Object {$_.MemberType -eq "NoteProperty"}) ) {
+ForEach ( $user in ($steamConfig.InstallConfigStore.AuthorizedDevice | Get-Member -MemberType "NoteProperty") ) {
 	$userTable.LoadDataRow(@($user.Name, $steamUsers.users.(Get-SteamID64 $user.Name).AccountName, $steamUsers.users.(Get-SteamID64 $user.Name).PersonaName), $true ) | Out-Null
 }
 $userTable.EndLoadData()
