@@ -388,7 +388,7 @@ ForEach ($path in Get-LibraryFolders)
 # Preload Steam App List
 Write-Log -InputObject "Loading app info from Steam Store..."
 try {
-	$steamapplist = (Invoke-WebRequest "http://api.steampowered.com/ISteamApps/GetAppList/v0001/" -UseBasicParsing).Content | ConvertFrom-Json
+	$steamapplist = Invoke-RestMethod "http://api.steampowered.com/ISteamApps/GetAppList/v0001/"
 }
 catch {
 	Write-LogFooter "Execution failed - $($_.Exception)"
@@ -416,9 +416,10 @@ if ($IncludeGamesNotOwned -eq $false) {
 	# Get games owned by local users
 	Write-Log -InputObject "Loading AppIDs for games owned by Local Users..."
 	$libraryIDs = @()
-	ForEach ($user in (get-childitem "$($steamPath)\userdata" | Where-Object {$_.BaseName -ne "0"})) {
+	ForEach ($user in (Get-ChildItem "$($steamPath)\userdata" | Where-Object {$_.BaseName -ne "0"})) {
 		try {
-			[xml]$xmlLibrary = (Invoke-WebRequest "http://steamcommunity.com/profiles/$(Get-SteamID64 -SteamID3 ($user.BaseName.ToInt32($null)))/games?tab=all&xml=1" -UseBasicParsing).Content
+			$steamUserId = Get-SteamID64 -SteamID3 ($user.BaseName.ToInt32($null))
+			[xml]$xmlLibrary = Invoke-RestMethod "http://steamcommunity.com/profiles/$steamUserId/games?tab=all&xml=1"
 			if ($xmlLibrary.gamesList.error -eq $null) {
 				$libraryIDs += $xmlLibrary.gamesList.games.game.appID | Where-Object {$_ -notin $libraryIDs}
 			} else {
@@ -485,7 +486,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 					$name = ($mysteamapplist | Where-Object {$_.appid -eq $id }).name
 				}
 				if ($name -ne $null) {
-					$path = "$($steamPath)\SteamApps\appmanifest_$($id).acf"
+					$path = "$($steamLibrary)\SteamApps\appmanifest_$($id).acf"
 					if ((Test-Path $path) -eq $false) {
 						Write-Log -InputObject "App manifest for '$($name)' is missing"
 						$matchTable.LoadDataRow(@($id, $name, $folder, $steamLibrary, "Lookup Table", $true), $true) | Out-Null
@@ -519,7 +520,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 		if ($apps -ne $null) {
 			$definitiveMatch = $false;
 			ForEach ($app in $apps) {
-				$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+				$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 				if ((Test-Path $path) -eq $true) {
 					$acf = ConvertFrom-VDF (Get-Content $path)
 					if ($acf.AppState.InstallDir -eq $folder) {
@@ -536,7 +537,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 			if (-not $definitiveMatch) {
 				if ($apps.Count -le $MaximumAmbiguousMatches) {
 					ForEach ($app in $apps) {
-						$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 						if ((Test-Path $path) -eq $false) {
 							Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
 							$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-eq '$($folder)'", ($apps.appID.count -eq 1)), $true) | Out-Null
@@ -568,7 +569,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 		if ($apps -ne $null) {
 			$definitiveMatch = $false;
 			ForEach ($app in $apps) {
-				$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+				$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 				if ((Test-Path $path) -eq $true) {
 					$acf = ConvertFrom-VDF (Get-Content $path)
 					if ($acf.AppState.InstallDir -eq $folder) {
@@ -585,7 +586,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 			if (-not $definitiveMatch) {
 				if ($apps.Count -le $MaximumAmbiguousMatches) {
 					ForEach ($app in $apps) {
-						$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 						if ((Test-Path $path) -eq $false) {
 							Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
 							$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($folder)'", ($apps.appID.count -eq 1)), $true) | Out-Null
@@ -628,7 +629,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 				if ($apps -ne $null) {
 					$definitiveMatch = $false;
 					ForEach ($app in $apps) {
-						$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 						if ((Test-Path $path) -eq $true) {
 							$acf = ConvertFrom-VDF (Get-Content $path)
 							if ($acf.AppState.InstallDir -eq $folder) {
@@ -646,7 +647,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 					if (-not $definitiveMatch) {
 						if ($apps.Count -le $MaximumAmbiguousMatches) {
 							ForEach ($app in $apps) {
-								$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+								$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 								if ((Test-Path $path) -eq $false) {
 									Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
 									$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($pattern)'", ($apps.appID.count -eq 1)), $true) | Out-Null
@@ -705,7 +706,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 				if ($apps -ne $null) {
 					$definitiveMatch = $false;
 					ForEach ($app in $apps) {
-						$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 						if ((Test-Path $path) -eq $true) {
 							$acf = ConvertFrom-VDF (Get-Content $path)
 							if ($acf.AppState.InstallDir -eq $folder) {
@@ -723,7 +724,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 					if (-not $definitiveMatch) {
 						if ($apps.Count -le $MaximumAmbiguousMatches) {
 							ForEach ($app in $apps) {
-								$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+								$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 								if ((Test-Path $path) -eq $false) {
 									Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
 									$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($pattern)'", ($apps.appID.count -eq 1)), $true) | Out-Null
@@ -771,7 +772,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 				if ($apps -ne $null) {
 					$definitiveMatch = $false;
 					ForEach ($app in $apps) {
-						$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 						if ((Test-Path $path) -eq $true) {
 							$acf = ConvertFrom-VDF (Get-Content $path)
 							if ($acf.AppState.InstallDir -eq $folder) {
@@ -789,7 +790,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 					if (-not $definitiveMatch) {
 						if ($apps.Count -le $MaximumAmbiguousMatches) {
 							ForEach ($app in $apps) {
-								$path = "$($steamPath)\SteamApps\appmanifest_$($app.AppID).acf"
+								$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
 								if ((Test-Path $path) -eq $false) {
 									Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
 									$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($pattern)'", ($apps.appID.count -eq 1)), $true) | Out-Null
@@ -825,27 +826,31 @@ $matchTable.EndLoadData()
 #endregion
 
 #region Sanity Check
-$form = New-SanityCheckForm
-$dgv = New-SanityCheckDataGridView -Form $form
-
-$bindingSource = New-Object System.Windows.Forms.BindingSource
-$bindingSource.DataSource = $matchTable
-$dgv.DataSource = $bindingSource
-$dgv.Refresh()
-
-$form.Add_Shown({$Form.Activate()})
-$form.Show()
-
-$script:exit = $false
-$script:sanityChecked = $false
-While (-not $exit)
+# Only show the form if there is something to show
+if ($matchTable.Rows.Count -gt 0)
 {
-    Start-Sleep -Milliseconds 20
-	[System.Windows.Forms.Application]::DoEvents() | Out-Null
+	$form = New-SanityCheckForm
+	$dgv = New-SanityCheckDataGridView -Form $form
+
+	$bindingSource = New-Object System.Windows.Forms.BindingSource
+	$bindingSource.DataSource = $matchTable
+	$dgv.DataSource = $bindingSource
+	$dgv.Refresh()
+
+	$form.Add_Shown({$Form.Activate()})
+	$form.Show()
+
+	$script:exit = $false
+	$script:sanityChecked = $false
+	While (-not $exit)
+	{
+		Start-Sleep -Milliseconds 20
+		[System.Windows.Forms.Application]::DoEvents() | Out-Null
+	}
+	 
+	$form.Close()
+	$form.Dispose()
 }
- 
-$form.Close()
-$form.Dispose()
 
 # $matchTable.Rows | Out-GridView #DEBUG
 
