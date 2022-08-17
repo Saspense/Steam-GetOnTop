@@ -508,311 +508,325 @@ ForEach ($steamLibrary in $steamLibraries) {
 	Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
 	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 
-	$lastMatchedCount = $matchTable.Rows.count
-	$remaining = $unmatched
-	$unmatched = @()
+	if ($unmatched.Count -gt 0)
+	{
+		$lastMatchedCount = $matchTable.Rows.count
+		$remaining = $unmatched
+		$unmatched = @()
 
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "Trying (Name -eq Install Directory) ..."
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	ForEach ($folder in $remaining) {
-		$apps = ($mysteamapplist | Where-Object {$_.name -eq $folder })
-		if ($apps -ne $null) {
-			$definitiveMatch = $false;
-			ForEach ($app in $apps) {
-				$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-				if ((Test-Path $path) -eq $true) {
-					$acf = ConvertFrom-VDF (Get-Content $path)
-					if ($acf.AppState.InstallDir -eq $folder) {
-						Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
-						$definitiveMatch = $true
-						if ($app.AppID -notin $appLookup.AppID) {
-							Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
-							[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
-						}
-						break
-					}
-				}
-			}
-			if (-not $definitiveMatch) {
-				if ($apps.Count -le $MaximumAmbiguousMatches) {
-					ForEach ($app in $apps) {
-						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-						if ((Test-Path $path) -eq $false) {
-							Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
-							$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-eq '$($folder)'", ($apps.appID.count -eq 1)), $true) | Out-Null
-						}
-					}
-				} else {
-					Write-Log -InputObject "Search term '$($folder)' returned too many results ($($apps.count) matches)"
-					$unmatched += $folder
-				}
-			}
-		} else {
-			$unmatched += $folder
-		}
-	}
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s), $($unmatched.count) unmatched"
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-
-
-	$lastMatchedCount = $matchTable.Rows.count
-	$remaining = $unmatched
-	$unmatched = @()
-
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "Trying (Name -match Install Directory) ..."
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	ForEach ($folder in $remaining) {
-		$apps = ($mysteamapplist | Where-Object {$_.name -match $folder })
-		if ($apps -ne $null) {
-			$definitiveMatch = $false;
-			ForEach ($app in $apps) {
-				$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-				if ((Test-Path $path) -eq $true) {
-					$acf = ConvertFrom-VDF (Get-Content $path)
-					if ($acf.AppState.InstallDir -eq $folder) {
-						Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
-						$definitiveMatch = $true
-						if ($app.AppID -notin $appLookup.AppID) {
-							Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
-							[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
-						}
-						break
-					}
-				}
-			}
-			if (-not $definitiveMatch) {
-				if ($apps.Count -le $MaximumAmbiguousMatches) {
-					ForEach ($app in $apps) {
-						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-						if ((Test-Path $path) -eq $false) {
-							Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
-							$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($folder)'", ($apps.appID.count -eq 1)), $true) | Out-Null
-						}
-					}
-				} else {
-					Write-Log -InputObject "Search term '$($folder)' returned too many results ($($apps.count) matches)"
-					$unmatched += $folder
-				}
-			}
-		} else {
-			$unmatched += $folder
-		}
-	}
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-
-	$lastMatchedCount = $matchTable.Rows.count
-	$remaining = $unmatched
-	$unmatched = @()
-
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "Trying (Name -match [Install Directory, Split by ' ']) ..."
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	ForEach ($folder in $remaining) {
-		$words = $folder.Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)
-		$found = $false
-		$patterns = @()
-		For ($i = $words.count; $i -gt 0; $i--) {
-			$pattern = ""
-			For ($j = 0; $j -lt $i; $j++) {
-				$pattern += "$($words[$j]).*"
-			}
-			$patterns += $pattern
-		}
-		ForEach ($pattern in $patterns) {
-			if (-not $found) {
-				$apps = ($mysteamapplist | Where-Object {$_.name -match $pattern })
-				if ($apps -ne $null) {
-					$definitiveMatch = $false;
-					ForEach ($app in $apps) {
-						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-						if ((Test-Path $path) -eq $true) {
-							$acf = ConvertFrom-VDF (Get-Content $path)
-							if ($acf.AppState.InstallDir -eq $folder) {
-								Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
-								$definitiveMatch = $true
-								$found = $true
-								if ($app.AppID -notin $appLookup.AppID) {
-									Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
-									[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
-								}
-								break
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "Trying (Name -eq Install Directory) ..."
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		ForEach ($folder in $remaining) {
+			$apps = ($mysteamapplist | Where-Object {$_.name -eq $folder })
+			if ($apps -ne $null) {
+				$definitiveMatch = $false;
+				ForEach ($app in $apps) {
+					$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+					if ((Test-Path $path) -eq $true) {
+						$acf = ConvertFrom-VDF (Get-Content $path)
+						if ($acf.AppState.InstallDir -eq $folder) {
+							Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
+							$definitiveMatch = $true
+							if ($app.AppID -notin $appLookup.AppID) {
+								Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
+								[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
 							}
+							break
 						}
 					}
-					if (-not $definitiveMatch) {
-						if ($apps.Count -le $MaximumAmbiguousMatches) {
-							ForEach ($app in $apps) {
-								$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-								if ((Test-Path $path) -eq $false) {
-									Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
-									$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($pattern)'", ($apps.appID.count -eq 1)), $true) | Out-Null
-									$found = $true
-								}
+				}
+				if (-not $definitiveMatch) {
+					if ($apps.Count -le $MaximumAmbiguousMatches) {
+						ForEach ($app in $apps) {
+							$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+							if ((Test-Path $path) -eq $false) {
+								Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
+								$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-eq '$($folder)'", ($apps.appID.count -eq 1)), $true) | Out-Null
 							}
-						} else {
-							Write-Log -InputObject "Search term '$($pattern)' (Folder: '$($folder) returned too many results ($($apps.count) matches)"
 						}
 					} else {
-						break
+						Write-Log -InputObject "Search term '$($folder)' returned too many results ($($apps.count) matches)"
+						$unmatched += $folder
 					}
 				}
+			} else {
+				$unmatched += $folder
 			}
 		}
-		if (-not $found) {
-			$unmatched += $folder
-		}
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s), $($unmatched.count) unmatched"
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	}
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 
-	$lastMatchedCount = $matchTable.Rows.count
-	$remaining = $unmatched
-	$unmatched = @()
+	if ($unmatched.Count -gt 0)
+	{
+		$lastMatchedCount = $matchTable.Rows.count
+		$remaining = $unmatched
+		$unmatched = @()
 
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "Trying (Name -match [Install Directory, Split by Uppercase letters]) ..."
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	ForEach ($folder in $remaining) {
-		if ($folder -match "\s+") { #
-			$unmatched += $folder
-			continue;
-		}
-		$regex = (Select-String -InputObject $folder -Pattern "(([A-Z]{1}[a-z]+)(?:\s*))+" -CaseSensitive)
-		$words = $null
-		if ($regex -ne $null) {
-			$captures = $regex.Matches.Groups[$regex.Matches.Groups.count - 1].Captures
-			if ($captures.count -gt 1) {
-				$words = $captures.Value
-			}
-		}
-		$found = $false
-		$patterns = @()
-		For ($i = $words.count; $i -gt 0; $i--) {
-			$pattern = ""
-			For ($j = 0; $j -lt $i; $j++) {
-				$pattern += "$($words[$j]).*"
-			}
-			$patterns += $pattern
-		}
-		ForEach ($pattern in $patterns) {
-			if (-not $found) {
-				$apps = ($mysteamapplist | Where-Object {$_.name -match $pattern })
-				if ($apps -ne $null) {
-					$definitiveMatch = $false;
-					ForEach ($app in $apps) {
-						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-						if ((Test-Path $path) -eq $true) {
-							$acf = ConvertFrom-VDF (Get-Content $path)
-							if ($acf.AppState.InstallDir -eq $folder) {
-								Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
-								$definitiveMatch = $true
-								$found = $true
-								if ($app.AppID -notin $appLookup.AppID) {
-									Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
-									[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
-								}
-								break
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "Trying (Name -match Install Directory) ..."
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		ForEach ($folder in $remaining) {
+			$apps = ($mysteamapplist | Where-Object {$_.name -match $folder })
+			if ($apps -ne $null) {
+				$definitiveMatch = $false;
+				ForEach ($app in $apps) {
+					$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+					if ((Test-Path $path) -eq $true) {
+						$acf = ConvertFrom-VDF (Get-Content $path)
+						if ($acf.AppState.InstallDir -eq $folder) {
+							Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
+							$definitiveMatch = $true
+							if ($app.AppID -notin $appLookup.AppID) {
+								Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
+								[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
 							}
+							break
 						}
 					}
-					if (-not $definitiveMatch) {
-						if ($apps.Count -le $MaximumAmbiguousMatches) {
-							ForEach ($app in $apps) {
-								$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-								if ((Test-Path $path) -eq $false) {
-									Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
-									$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($pattern)'", ($apps.appID.count -eq 1)), $true) | Out-Null
-									$found = $true
-								}
+				}
+				if (-not $definitiveMatch) {
+					if ($apps.Count -le $MaximumAmbiguousMatches) {
+						ForEach ($app in $apps) {
+							$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+							if ((Test-Path $path) -eq $false) {
+								Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
+								$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($folder)'", ($apps.appID.count -eq 1)), $true) | Out-Null
 							}
-						} else {
-							Write-Log -InputObject "Search term '$($pattern)' (Folder: '$($folder) returned too many results ($($apps.count) matches)"
 						}
 					} else {
-						break
+						Write-Log -InputObject "Search term '$($folder)' returned too many results ($($apps.count) matches)"
+						$unmatched += $folder
 					}
 				}
+			} else {
+				$unmatched += $folder
 			}
 		}
-		if (-not $found) {
-			$unmatched += $folder
-		}
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	}
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+	
+	if ($unmatched.Count -gt 0)
+	{
+		$lastMatchedCount = $matchTable.Rows.count
+		$remaining = $unmatched
+		$unmatched = @()
 
-	$lastMatchedCount = $matchTable.Rows.count
-	$remaining = $unmatched
-	$unmatched = @()
-
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "Trying (Name -match [Install Directory, Split by '_']) ..."
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	ForEach ($folder in $remaining) {
-		$words = $folder.Split("_", [System.StringSplitOptions]::RemoveEmptyEntries)
-		$found = $false
-		$patterns = @()
-		For ($i = $words.count; $i -gt 0; $i--) {
-			$pattern = ""
-			For ($j = 0; $j -lt $i; $j++) {
-				$pattern += "$($words[$j]).*"
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "Trying (Name -match [Install Directory, Split by ' ']) ..."
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		ForEach ($folder in $remaining) {
+			$words = $folder.Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)
+			$found = $false
+			$patterns = @()
+			For ($i = $words.count; $i -gt 0; $i--) {
+				$pattern = ""
+				For ($j = 0; $j -lt $i; $j++) {
+					$pattern += "$($words[$j]).*"
+				}
+				$patterns += $pattern
 			}
-			$patterns += $pattern
-		}
-		ForEach ($pattern in $patterns) {
-			if (-not $found) {
-				$apps = ($mysteamapplist | Where-Object {$_.name -match $pattern })
-				if ($apps -ne $null) {
-					$definitiveMatch = $false;
-					ForEach ($app in $apps) {
-						$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-						if ((Test-Path $path) -eq $true) {
-							$acf = ConvertFrom-VDF (Get-Content $path)
-							if ($acf.AppState.InstallDir -eq $folder) {
-								Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
-								$definitiveMatch = $true
-								$found = $true
-								if ($app.AppID -notin $appLookup.AppID) {
-									Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
-									[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
+			ForEach ($pattern in $patterns) {
+				if (-not $found) {
+					$apps = ($mysteamapplist | Where-Object {$_.name -match $pattern })
+					if ($apps -ne $null) {
+						$definitiveMatch = $false;
+						ForEach ($app in $apps) {
+							$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+							if ((Test-Path $path) -eq $true) {
+								$acf = ConvertFrom-VDF (Get-Content $path)
+								if ($acf.AppState.InstallDir -eq $folder) {
+									Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
+									$definitiveMatch = $true
+									$found = $true
+									if ($app.AppID -notin $appLookup.AppID) {
+										Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
+										[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
+									}
+									break
 								}
-								break
 							}
 						}
-					}
-					if (-not $definitiveMatch) {
-						if ($apps.Count -le $MaximumAmbiguousMatches) {
-							ForEach ($app in $apps) {
-								$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
-								if ((Test-Path $path) -eq $false) {
-									Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
-									$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($pattern)'", ($apps.appID.count -eq 1)), $true) | Out-Null
-									$found = $true
+						if (-not $definitiveMatch) {
+							if ($apps.Count -le $MaximumAmbiguousMatches) {
+								ForEach ($app in $apps) {
+									$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+									if ((Test-Path $path) -eq $false) {
+										Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
+										$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($pattern)'", ($apps.appID.count -eq 1)), $true) | Out-Null
+										$found = $true
+									}
 								}
+							} else {
+								Write-Log -InputObject "Search term '$($pattern)' (Folder: '$($folder) returned too many results ($($apps.count) matches)"
 							}
 						} else {
-							Write-Log -InputObject "Search term '$($pattern)' (Folder: '$($folder) returned too many results ($($apps.count) matches)"
+							break
 						}
-					} else {
-						break
 					}
 				}
 			}
+			if (-not $found) {
+				$unmatched += $folder
+			}
 		}
-		if (-not $found) {
-			$unmatched += $folder
-		}
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	}
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
-	Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) matched ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+	
+	if ($unmatched.Count -gt 0)
+	{
+		$lastMatchedCount = $matchTable.Rows.count
+		$remaining = $unmatched
+		$unmatched = @()
+
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "Trying (Name -match [Install Directory, Split by Uppercase letters]) ..."
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		ForEach ($folder in $remaining) {
+			if ($folder -match "\s+") { #
+				$unmatched += $folder
+				continue;
+			}
+			$regex = (Select-String -InputObject $folder -Pattern "(([A-Z]{1}[a-z]+)(?:\s*))+" -CaseSensitive)
+			$words = $null
+			if ($regex -ne $null) {
+				$captures = $regex.Matches.Groups[$regex.Matches.Groups.count - 1].Captures
+				if ($captures.count -gt 1) {
+					$words = $captures.Value
+				}
+			}
+			$found = $false
+			$patterns = @()
+			For ($i = $words.count; $i -gt 0; $i--) {
+				$pattern = ""
+				For ($j = 0; $j -lt $i; $j++) {
+					$pattern += "$($words[$j]).*"
+				}
+				$patterns += $pattern
+			}
+			ForEach ($pattern in $patterns) {
+				if (-not $found) {
+					$apps = ($mysteamapplist | Where-Object {$_.name -match $pattern })
+					if ($apps -ne $null) {
+						$definitiveMatch = $false;
+						ForEach ($app in $apps) {
+							$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+							if ((Test-Path $path) -eq $true) {
+								$acf = ConvertFrom-VDF (Get-Content $path)
+								if ($acf.AppState.InstallDir -eq $folder) {
+									Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
+									$definitiveMatch = $true
+									$found = $true
+									if ($app.AppID -notin $appLookup.AppID) {
+										Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
+										[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
+									}
+									break
+								}
+							}
+						}
+						if (-not $definitiveMatch) {
+							if ($apps.Count -le $MaximumAmbiguousMatches) {
+								ForEach ($app in $apps) {
+									$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+									if ((Test-Path $path) -eq $false) {
+										Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
+										$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($pattern)'", ($apps.appID.count -eq 1)), $true) | Out-Null
+										$found = $true
+									}
+								}
+							} else {
+								Write-Log -InputObject "Search term '$($pattern)' (Folder: '$($folder) returned too many results ($($apps.count) matches)"
+							}
+						} else {
+							break
+						}
+					}
+				}
+			}
+			if (-not $found) {
+				$unmatched += $folder
+			}
+		}
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+	}
+	
+	if ($unmatched.Count -gt 0)
+	{
+		$lastMatchedCount = $matchTable.Rows.count
+		$remaining = $unmatched
+		$unmatched = @()
+
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "Trying (Name -match [Install Directory, Split by '_']) ..."
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		ForEach ($folder in $remaining) {
+			$words = $folder.Split("_", [System.StringSplitOptions]::RemoveEmptyEntries)
+			$found = $false
+			$patterns = @()
+			For ($i = $words.count; $i -gt 0; $i--) {
+				$pattern = ""
+				For ($j = 0; $j -lt $i; $j++) {
+					$pattern += "$($words[$j]).*"
+				}
+				$patterns += $pattern
+			}
+			ForEach ($pattern in $patterns) {
+				if (-not $found) {
+					$apps = ($mysteamapplist | Where-Object {$_.name -match $pattern })
+					if ($apps -ne $null) {
+						$definitiveMatch = $false;
+						ForEach ($app in $apps) {
+							$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+							if ((Test-Path $path) -eq $true) {
+								$acf = ConvertFrom-VDF (Get-Content $path)
+								if ($acf.AppState.InstallDir -eq $folder) {
+									Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
+									$definitiveMatch = $true
+									$found = $true
+									if ($app.AppID -notin $appLookup.AppID) {
+										Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
+										[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
+									}
+									break
+								}
+							}
+						}
+						if (-not $definitiveMatch) {
+							if ($apps.Count -le $MaximumAmbiguousMatches) {
+								ForEach ($app in $apps) {
+									$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+									if ((Test-Path $path) -eq $false) {
+										Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
+										$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-match '$($pattern)'", ($apps.appID.count -eq 1)), $true) | Out-Null
+										$found = $true
+									}
+								}
+							} else {
+								Write-Log -InputObject "Search term '$($pattern)' (Folder: '$($folder) returned too many results ($($apps.count) matches)"
+							}
+						} else {
+							break
+						}
+					}
+				}
+			}
+			if (-not $found) {
+				$unmatched += $folder
+			}
+		}
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) matched ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+	}
 	
 	ForEach ($folder in $unmatched) {
 		Write-Log -InputObject "Folder '$($folder)' could not be easily matched$($disclaimer). Adding to sanity check for manual data entry."
