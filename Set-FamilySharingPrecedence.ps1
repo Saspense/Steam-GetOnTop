@@ -53,8 +53,8 @@ $Form.Controls.Add($LabelText)
  
 $dgv = New-Object System.Windows.Forms.DataGridView
 $dgv.Name = "User List"
-$dgv.Location = new-object System.Drawing.Size(20, 100)
-$dgv.Size = new-object System.Drawing.Size(($formWidth - 40),($formHeight - 140))
+$dgv.Location = New-Object System.Drawing.Size(20, 100)
+$dgv.Size = New-Object System.Drawing.Size(($formWidth - 40),($formHeight - 140))
 $dgv.MultiSelect = $false
 $dgv.AllowUserToAddRows = $false
 #$dgv.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnMode]::AllCells
@@ -151,18 +151,18 @@ $dgv.add_DragDrop({
 $Form.Controls.Add($dgv) | Out-Null
 
 # Cancel Button
-$Button = new-object System.Windows.Forms.Button
-$Button.Location = new-object System.Drawing.Size(($formwidth - 108), ($formheight - 32))
-$Button.Size = new-object System.Drawing.Size(100,24)
+$Button = New-Object System.Windows.Forms.Button
+$Button.Location = New-Object System.Drawing.Size(($formwidth - 108), ($formheight - 32))
+$Button.Size = New-Object System.Drawing.Size(100,24)
 $Button.Text = "Cancel"
 $Button.Add_Click({ $script:exit = $true })
 $Form.Controls.Add($Button)
 $Form.CancelButton = $Button
 
 # Okay Button
-$Button = new-object System.Windows.Forms.Button
-$Button.Location = new-object System.Drawing.Size(($formwidth - 216), ($formheight - 32))
-$Button.Size = new-object System.Drawing.Size(100,24)
+$Button = New-Object System.Windows.Forms.Button
+$Button.Location = New-Object System.Drawing.Size(($formwidth - 216), ($formheight - 32))
+$Button.Size = New-Object System.Drawing.Size(100,24)
 $Button.Text = "Accept Changes"
 $Button.Add_Click({ $script:commit = $true; $script:exit = $true })
 $Form.Controls.Add($Button)
