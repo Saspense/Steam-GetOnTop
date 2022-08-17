@@ -1,10 +1,10 @@
 <# 
  .Synopsis 
-	Scans .\SteamApps\ for app manifests, adds them to a lookup table and then writes that able to a JSON file.
+	Scans .\SteamApps\ for in each library folder for app manifests, adds them to a lookup table and then writes that able to a JSON file.
 
  .Description 
-    This script will search for app manifests in .\SteamApps\(*.acf), and extract the AppID, Name and Install Directory from each to store in a lookup table. This table is then
-	output to a JSON file, to be used as a reference for matching Steam apps to install folders.
+    This script will search for app manifests in .\SteamApps\(*.acf) for each library, and extract the AppID, Name and Install Directory from each to store in a lookup table. 
+	This table is then output to a JSON file, to be used as a reference for matching Steam apps to install folders.
 
  .Parameter OutputFile
      This specifies the path to the JSON file for output. Default is ".\AppLookup.json"
@@ -17,7 +17,7 @@
 
      Description 
      ----------- 
-     Reads in ".\existingapps.json", Scans .\SteamApps\ for app manifests, appends them and writes out to ".\steamapps.json"
+     Reads in ".\existingapps.json", Scans .\SteamApps\ in each library folder for app manifests, appends them and writes out to ".\steamapps.json"
  #>
 
 [cmdletBinding(SupportsShouldProcess=$false)]
@@ -31,8 +31,6 @@ param(
 
 Import-Module .\Modules\SteamTools
 
-$steamPath = Get-SteamPath
-
 $LookupTablePath = ".\AppLookup.json"
 if (Test-Path $LookupTablePath) {
 	$AppLookup = Get-Content $LookupTablePath | ConvertFrom-Json
@@ -43,11 +41,13 @@ if (Test-Path $LookupTablePath) {
 if ($AppLookup -ne $null) {
 	[array]$apps += $AppLookup
 }
-
-ForEach ($file in (Get-ChildItem "$($steamPath)\SteamApps\*.acf") ) {
-	$acf = ConvertFrom-VDF (Get-Content $file -Encoding UTF8)
-	if ($acf.AppState.appID -notin $apps.AppID) {
-		[array]$apps += $acf.AppState | Select-Object -Property AppId, Name, InstallDir
+ForEach ($steamLibrary in Get-LibraryFolders)
+{
+	ForEach ($file in (Get-ChildItem "$($steamLibrary)\SteamApps\*.acf") ) {
+		$acf = ConvertFrom-VDF (Get-Content $file -Encoding UTF8)
+		if ($acf.AppState.appID -notin $apps.AppID) {
+			[array]$apps += $acf.AppState | Select-Object -Property AppId, Name, InstallDir
+		}
 	}
 }
 
