@@ -338,8 +338,10 @@ param(
 [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing") | Out-Null
 
 # Import Modules
-Import-Module .\Modules\SteamTools
-Import-Module .\Modules\LogTools
+
+
+Import-Module "$PSScriptRoot\Modules\SteamTools"
+Import-Module "$PSScriptRoot\Modules\LogTools"
 
 #region Initialisation
 if ($IncludeGamesNotOwned -eq $true) {
@@ -357,7 +359,7 @@ if ($SkipSanityCheck -eq $true) {
 	exit
 }
 
-$log = ".\Publish-SteamAppManifests.log"
+$log = "$PSScriptRoot\Publish-SteamAppManifests.log"
 Set-LogPath $log
 Set-LogLevel $LogLevel
 New-Item -Path $log -ItemType File -Force  | Out-Null
