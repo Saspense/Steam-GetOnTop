@@ -220,7 +220,7 @@ Function Get-InstalledSteamApps()
 			if ($acf.AppState.appID -notin $apps.AppID) {
 				# [array]$apps += $acf.AppState | Select-Object -Property AppId, Name, InstallDir
 				[array]$apps += [PSCustomObject]@{
-					AppId 		= $acf.AppState
+					AppId 		= $acf.AppState.AppId
 					Name 		= $acf.AppState.Name
 					InstallDir	= $acf.AppState.InstallDir
 					AcfFile		= $file.Fullname

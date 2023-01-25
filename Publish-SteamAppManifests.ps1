@@ -300,7 +300,7 @@ param(
 		if ($dgv.Columns[$_.ColumnIndex].Name -eq "AppID") {
 			$dgv.Rows.SharedRow($_.RowIndex).Cells["Query"].Value = "Modified by User"
 			$id = $dgv.Rows.SharedRow($_.RowIndex).Cells["AppID"].Value
-			$appinfo = ($steamapplist.applist.apps.app | Where-Object {$_.appID -eq $id})
+			$appinfo = ($steamAppList | Where-Object {$_.appID -eq $id})
 			if ($appinfo -ne $null) {
 				$dgv.Rows.SharedRow($_.RowIndex).Cells["Name"].Value = $appinfo.Name	
 			} else { 
@@ -312,7 +312,7 @@ param(
 		elseif ($dgv.Columns[$_.ColumnIndex].Name -eq "Name") {
 			$dgv.Rows.SharedRow($_.RowIndex).Cells["Query"].Value = "Modified by User"
 			$name = $dgv.Rows.SharedRow($_.RowIndex).Cells["Name"].Value
-			$appinfo = ($steamapplist.applist.apps.app | Where-Object {$_.Name -eq $name})
+			$appinfo = ($steamAppList | Where-Object {$_.Name -eq $name})
 			if ($appinfo -ne $null) {
 				$dgv.Rows.SharedRow($_.RowIndex).Cells["AppID"].Value = $appinfo.AppID	
 			} else { 
@@ -384,18 +384,15 @@ ForEach ($path in Get-LibraryFolders)
 # Preload Steam App List
 Write-Log -InputObject "Loading app info from Steam Store..."
 try {
-	$steamapplist = Invoke-RestMethod "http://api.steampowered.com/ISteamApps/GetAppList/v0001/"
+	$appListResponse = Invoke-RestMethod "http://api.steampowered.com/ISteamApps/GetAppList/v0002/"
+	$steamAppList = $appListResponse.applist.apps | Where { -not [String]::IsNullOrWhiteSpace($_.name) }
 }
 catch {
 	Write-LogFooter "Execution failed - $($_.Exception)"
 	#throw
 }
-Write-Log -InputObject "... $(($steamapplist.applist.apps.app).count) IDs enumerated"
 
-# Get installed steam app info from existing acf files
-$appLookup = Get-InstalledSteamApps
-
-Write-Log -InputObject "... $($count) IDs enumerated"
+Write-Log -InputObject "... $($steamAppList.count) IDs enumerated"
 
 $disclaimer = [System.String]::Empty
 
@@ -426,10 +423,10 @@ if ($IncludeGamesNotOwned -eq $false) {
 	
 	# Filter games to owned only
 	Write-Log -InputObject "Filtering Apps to owned only... (this may take a minute or two)"
-	$mysteamapplist = $steamapplist.applist.apps.app | Where-Object {$_.appid -in $libraryIDs }
+	$mysteamapplist = $steamAppList | Where-Object { $_.appid -in $libraryIDs }
 	Write-Log -InputObject "... Done!"
 } else {
-	$mysteamapplist = $steamapplist.applist.apps.app
+	$mysteamapplist = $steamAppList
 }
 
 # DEBUG
@@ -439,11 +436,14 @@ if ($IncludeGamesNotOwned -eq $false) {
 # Get info about installed software from the registry
 $installedSoftware = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Select DisplayName, InstallLocation | Where { $_.DisplayName -and $_.InstallLocation }
 
+# Get installed steam app info from existing acf files
+$appLookup = Get-InstalledSteamApps
+
 ForEach ($steamLibrary in $steamLibraries) {
 	# Get Folders
 	Write-Log -InputObject "Getting install directories from $($steamLibrary)\SteamApps\Common ..."
 	# Select all folders that aren't empty
-	$folders = Get-ChildItem "$($steamLibrary)\SteamApps\Common\" | Where { Test-Path "$_.Fullname\*" } | Select-Object -Property Name
+	$folders = Get-ChildItem "$($steamLibrary)\SteamApps\Common\" | Where { Test-Path "$($_.Fullname)\*" } | Select-Object -Property Name
 	Write-Log -InputObject "... $($folders.count) directories enumerated"
 
 	# Build a table to store relevant data
@@ -516,16 +516,43 @@ ForEach ($steamLibrary in $steamLibraries) {
 			$steamInstallDir = "$($steamLibrary)\SteamApps\Common\$folder"
 			$softwareDisplayName = $installedSoftware | Where { $_.InstallLocation -eq $steamInstallDir	} | Select -ExpandProperty DisplayName
 			
-			write-log -InputObject "matching $steamInstallDir to $softwareDisplayName"
+			$apps = ($mysteamapplist | Where { $_.name -eq $softwareDisplayName })
 			
-			$app = ($mysteamapplist | Where { $_.name -eq $softwareDisplayName })
-			if ($app -ne $null) {				
-				Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($app.AcfFile)" -MessageLevel "Verbose"
-			}
-			else
+			if ($apps -ne $null)
 			{
-				$unmatched += $folder
-			}			
+				$definitiveMatch = $false
+				foreach ($app in $apps)
+				{
+					$path = "$($steamLibrary)\SteamApps\appmanifest_$($steamApp.AppID).acf"
+					
+					if ((Test-Path $path) -eq $true) {
+						$acf = ConvertFrom-VDF (Get-Content $path)
+						if ($acf.AppState.InstallDir -eq $folder) {
+							Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($path)" -MessageLevel "Verbose"
+							$definitiveMatch = $true
+							if ($steamApp.AppID -notin $appLookup.AppID) {
+								Write-Log -InputObject "$($app.Appid) : $($folder) not in Lookup Table - adding" -MessageLevel "Debug"
+								[array]$appLookup += $acf.AppState | Select-Object -Property AppId, InstallDir
+							}
+							break
+						}
+					}
+				}
+				if (-not $definitiveMatch) {
+					if ($apps.Count -le $MaximumAmbiguousMatches) {
+						ForEach ($app in $apps) {
+							$path = "$($steamLibrary)\SteamApps\appmanifest_$($app.AppID).acf"
+							if ((Test-Path $path) -eq $false) {
+								Write-Log -InputObject "App manifest for '$($app.Name)' may be missing"
+								$matchTable.LoadDataRow(@($app.AppID, $app.Name, $folder, $steamLibrary, "-eq '$($softwareDisplayName)'", ($apps.appID.count -eq 1)), $true) | Out-Null
+							}
+						}
+					} else {
+						Write-Log -InputObject "Search term '$($folder)' returned too many results ($($apps.count) matches)"
+						$unmatched += $folder
+					}
+				}
+			}
 		}
 		
 		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
