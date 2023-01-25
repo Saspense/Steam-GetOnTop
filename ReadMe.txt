@@ -4,9 +4,8 @@ SUMMARY
 	
 	This is a suite of PowerShell scripts to get on top of the burden of managing an unwieldy Steam library. Presently, it consists of:
 	
-		- VDFTools module: Adds ConvertTo-VDF and ConvertFrom-VDF functions to powershell, to parse Valve Data Files into usable data objects.
+		- SteamTools module: Adds some functions to work with steam *.acf and *.vdf Valve data files, and to help work with steam API calls
 		- Publish-SteamAppManifests: Scans install folders in <steam>\SteamApps\Common and creates missing App Manifests. Greatly simplifies library migration/recovery!
-		- Initialize-SteamAppLookup: Builds a JSON data file containing a lookup table that allows correlation of Steam AppIDs, Names and Install directories - not hugely useful, but speeds up Publish-SteamAppManifests!
 
 REQUIREMENTS
 
@@ -37,10 +36,10 @@ USAGE GUIDE
 		- Check registry for Steam root path
 		- Check <steam root>\config\config.vdf for additional libraries
 		- Download a complete list of Steam apps from http://api.steampowered.com/ISteamApps/GetAppList/v0001/
-		- Load a lookup table that contains AppIDs, Names and Install Directories (default: .\AppLookup.json)
+		- Build a lookup table that contains info about the installed games by reading all the *.acf files in each library folder
 		- Get local steam users from <steam root>\userdata
 		- Get a full list of that user's games from http://steamcommunity.com/profiles/<userID>/games?tab=all&xml=1 (by default the script will only match against your owned games)
-		- For each install directory in <steam root>\SteamApps\Common\:
+		- For each install directory in <each library>\SteamApps\Common\:
 			+ Try to match against lookup table (fastest, most accurate)
 			+ Try to find app named identically to the install directory name (fast, accurate)
 			+ Try a regex match of the install directory name (prone to finding multiple results, for instance "Game Title" may match "Game Title", "Game Title Trailer", "Game Title Demo", etc)

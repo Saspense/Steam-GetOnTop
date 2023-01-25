@@ -7,9 +7,6 @@
 	they will be displayed in a data table. The user has the option to recreate them, or tweak the data if it has been incorrectly matched. This largely automates the process 
 	of Steam library migration and recovery.
 
- .Parameter LookupTablePath
-	 Specifies a path to a JSON file containing lookup information for definitive matches for Steam AppIDs, Names and Install Directories. Default ".\appLookup.json"
-	
  .Parameter IncludeGamesNotOwned
      When this switch is specified, the various search algorithms will compare against *all* Steam apps (slower). By default, this option is not enabled, and the searches
 	 will only match against games owned by Steam users on this local machine.
@@ -34,9 +31,6 @@
 
 [cmdletBinding(SupportsShouldProcess=$false)]
 param(
-	[Parameter(Mandatory=$false)]
-	[string]$LookupTablePath = ".\appLookup.json"
-	,
 	[Parameter(Mandatory=$false)]
 	[Switch]$IncludeGamesNotOwned
 	,
@@ -396,15 +390,9 @@ catch {
 }
 Write-Log -InputObject "... $(($steamapplist.applist.apps.app).count) IDs enumerated"
 
-# Preload Lookup Table
-Write-Log -InputObject "Loading AppID Lookup Table from file '$($LookupTablePath)' ..."
-if (Test-Path $LookupTablePath) {
-	$appLookup = Get-Content $LookupTablePath | ConvertFrom-Json
-	$count = ($appLookup).count
-} else {
-	Write-Log -InputObject "AppID Lookup data not found at $($LookupTablePath)"
-	$count = 0
-}
+# Get installed steam app info from existing acf files
+$appLookup = Get-InstalledSteamApps
+
 Write-Log -InputObject "... $($count) IDs enumerated"
 
 $disclaimer = [System.String]::Empty
@@ -446,10 +434,14 @@ if ($IncludeGamesNotOwned -eq $false) {
 #$mysteamapplist | Export-CSV ".\mysteamapplist.csv" -Encoding UTF8
 #$mysteamapplist = Import-CSV ".\mysteamapplist.csv"
 
+# Get info about installed software from the registry
+$installedSoftware = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Select DisplayName, InstallLocation | Where { $_.DisplayName -and $_.InstallLocation }
+
 ForEach ($steamLibrary in $steamLibraries) {
 	# Get Folders
 	Write-Log -InputObject "Getting install directories from $($steamLibrary)\SteamApps\Common ..."
-	$folders = Get-ChildItem "$($steamLibrary)\SteamApps\Common\" | Select-Object -Property Name
+	# Select all folders that aren't empty
+	$folders = Get-ChildItem "$($steamLibrary)\SteamApps\Common\" | Where { Test-Path "$_.Fullname\*" } | Select-Object -Property Name
 	Write-Log -InputObject "... $($folders.count) directories enumerated"
 
 	# Build a table to store relevant data
@@ -507,6 +499,37 @@ ForEach ($steamLibrary in $steamLibraries) {
 	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
 	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+
+	if ($unmatched.Count -gt 0)
+	{
+		$lastMatchedCount = $matchTable.Rows.count
+		$remaining = $unmatched
+		$unmatched = @()
+
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "Trying (Name -eq DisplayName for installed software) ..."
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		foreach ($folder in $remaining)
+		{
+			$steamInstallDir = "$($steamLibrary)\SteamApps\Common\$folder"
+			$softwareDisplayName = $installedSoftware | Where { $_.InstallLocation -eq $steamInstallDir	} | Select -ExpandProperty DisplayName
+			
+			write-log -InputObject "matching $steamInstallDir to $softwareDisplayName"
+			
+			$app = ($mysteamapplist | Where { $_.name -eq $softwareDisplayName })
+			if ($app -ne $null) {				
+				Write-Log -InputObject "App manifest for '$($app.Name)' already exists @ $($app.AcfFile)" -MessageLevel "Verbose"
+			}
+			else
+			{
+				$unmatched += $folder
+			}			
+		}
+		
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
+		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
+	}
 
 	if ($unmatched.Count -gt 0)
 	{
@@ -892,8 +915,6 @@ if ($sanityChecked -eq $true) {
 	Write-Log -InputObject "App Manifests created. Please restart Steam client to validate."
 	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"	
 }
-
-$appLookup | ConvertTo-Json | Out-File $LookupTablePath -Encoding UTF8
 
 #endregion
 

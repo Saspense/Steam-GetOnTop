@@ -141,7 +141,14 @@ Function ConvertTo-VDF
 }
 
 Function Get-SteamPath {
-	return (Get-Item HKCU:\Software\Valve\Steam\).GetValue("SteamPath").Replace("/","\")
+<# 
+.Synopsis 
+	Gets the steam directory from the registry and resolves it to it's actual name as displayed in explored
+
+.Outputs 
+    The exact name of the steam install directory
+#>
+	return (Get-Item HKCU:\Software\Valve\Steam\).GetValue("SteamPath") | Resolve-Path | Get-Item | Select -ExpandProperty Fullname
 }
 
 Function Get-SteamID64 {
@@ -159,6 +166,7 @@ param(
 
 	return "7656119$(($Z * 2) + (7960265728 + $Y))"
 }
+
 Function Get-LibraryFolders()
 {
 <#
@@ -188,9 +196,38 @@ Function Get-LibraryFolders()
 		{
 			$libraryFolder = $libraryFolders.($libraryId)
 			
-			$libraryFolderPaths += $libraryFolder.path.Replace('\\','\')
+			$libraryFolderPaths += $libraryFolder.path | Resolve-Path
 		}
 	}
 	
 	return $libraryFolderPaths
+}
+
+Function Get-InstalledSteamApps()
+{
+	<#
+.Synopsis 
+	Gets information about installed steam apps from the *.acf files in each library
+.Description
+	Loops through each libary as found in <steam root>\SteamApps\libraryfolders.vdf and reads all the *.acf files in each.
+#>
+	[array]$apps = @()
+
+	ForEach ($steamLibrary in Get-LibraryFolders)
+	{
+		ForEach ($file in (Get-ChildItem "$($steamLibrary)\SteamApps\*.acf") ) {
+			$acf = ConvertFrom-VDF (Get-Content $file -Encoding UTF8)
+			if ($acf.AppState.appID -notin $apps.AppID) {
+				# [array]$apps += $acf.AppState | Select-Object -Property AppId, Name, InstallDir
+				[array]$apps += [PSCustomObject]@{
+					AppId 		= $acf.AppState
+					Name 		= $acf.AppState.Name
+					InstallDir	= $acf.AppState.InstallDir
+					AcfFile		= $file.Fullname
+				}
+			}
+		}
+	}
+
+	return $apps
 }
