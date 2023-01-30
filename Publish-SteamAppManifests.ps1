@@ -1,10 +1,10 @@
-<# 
- .Synopsis 
+<#
+ .Synopsis
 	Scans the Steam folder for installed apps that don't have an app manifest, and creates app manifests after a sanity check by the user.
 
- .Description 
+ .Description
     This script will search for install folders in .\SteamApps\common, and compare install folders against app manifests in .\SteamApps. If any app manifests are missing,
-	they will be displayed in a data table. The user has the option to recreate them, or tweak the data if it has been incorrectly matched. This largely automates the process 
+	they will be displayed in a data table. The user has the option to recreate them, or tweak the data if it has been incorrectly matched. This largely automates the process
 	of Steam library migration and recovery.
 
  .Parameter IncludeGamesNotOwned
@@ -17,15 +17,15 @@
  .Parameter MaximumAmbiguousMatches
      This can be specified to override the default behaviour of only adding singular matches to the data table. Ambiguous matches will be added to the data table for sanity
 	 checking if the number of matches for a query is less than the MaximumAmbiguousMatches set.
-	 
- .Parameter LogLevel
-     Sets the highest log message category that will by output to the log file and powershell host window. Accepted Values are "None", "Standard", "Verbose", "Debug" 
 
- .Example 
+ .Parameter LogLevel
+     Sets the highest log message category that will by output to the log file and powershell host window. Accepted Values are "None", "Standard", "Verbose", "Debug"
+
+ .Example
      .\Publish-SteamAppManifests.ps1 -MaximumAmbiguousMatches 5
 
-     Description 
-     ----------- 
+     Description
+     -----------
      Generates a list a missing Steam app manifests, allowing up to 5 ambiguous matches to be sanity checked by the user.
  #>
 
@@ -41,7 +41,7 @@ param(
 	[int]$MaximumAmbiguousMatches = 1
 	,
 	[Parameter(Mandatory=$false)]
-	[ValidateSet("None", "Standard", "Verbose", "Debug")] 
+	[ValidateSet("None", "Standard", "Verbose", "Debug")]
 	[string]$LogLevel = "Standard"
 )
 
@@ -50,12 +50,12 @@ param(
 # =========
 
 #region Functions
-Function New-ACF {
-<# 
- .Synopsis 
+Function Write-Acf {
+<#
+ .Synopsis
 	Creates a new ACF (app manifest) file for a given Steam App ID, Name and install folder.
 
- .Description 
+ .Description
     This function will create a new ACF (app manifest) file for a given Steam App ID, Name and install folder in <steam root>\SteamApps\ . Most values are left at zero and will be updated by Steam when it validates the app manifest.
 
  .Parameter AppID
@@ -63,18 +63,18 @@ Function New-ACF {
 
  .Parameter AppName
      Specifies the application name that corresponds to the AppID.
-	 
+
  .Parameter SteamLibrary
      Specifies the root folder of this steam library
 
  .Parameter AppFolder
      Specifies the installation folder name ($SteamLibrary\SteamApps\$AppFolder)
 
- .Example 
+ .Example
      New-ACF -AppID 400 -AppName "Portal" -SteamLibrary "C:\Steam" -AppFolder "Portal"
 
-     Description 
-     ----------- 
+     Description
+     -----------
      Creates <steam root>\SteamApps\appmanifest_400.acf for Portal, installed in <steam root>\SteamApps\Portal
  #>
 param(
@@ -94,35 +94,8 @@ param(
 	[string[]]$AppFolder
 )
 
-	$acf = @"
-"AppState"
-{
-	"appid"		"$($AppID)"
-	"Universe"		"1"
-	"name"		"$($AppName)"
-	"StateFlags"		"2"
-	"installdir"		"$($AppFolder)"
-	"LastUpdated"		"0"
-	"UpdateResult"		"0"
-	"SizeOnDisk"		"0"
-	"buildid"		"0"
-	"LastOwner"		"76561197970761367"
-	"BytesToDownload"		"0"
-	"BytesDownloaded"		"0"
-	"AutoUpdateBehavior"		"0"
-	"AllowOtherDownloadsWhileRunning"		"0"
-	"UserConfig"
-	{
-		"language"		"english"
-	}
-	"InstalledDepots"
-	{
-	}
-	"MountedDepots"
-	{
-	}
-}
-"@
+	$acf = New-ACF $AppID $AppName $AppFolder
+
 	$path = "$($SteamLibrary)\SteamApps\appmanifest_$($appID).acf"
 	if ((Test-Path $path) -eq $false) {
 		Out-File -InputObject $acf -FilePath $path -Encoding UTF8
@@ -135,7 +108,7 @@ param(
 Function New-SanityCheckForm {
 	$windowwidth = 1024
 	$windowheight = 720
-	
+
 	# Create an empty Form
 	$Form = New-Object System.Windows.Forms.Form
 	$Form.width = $windowwidth
@@ -149,7 +122,7 @@ Function New-SanityCheckForm {
 	# Get the actual form space
 	$formwidth = $Form.ClientRectangle.Width
 	$formheight = $Form.ClientRectangle.Height
-	
+
 	# Cancel Button
 	$Button = New-Object System.Windows.Forms.Button
 	$Button.Location = New-Object System.Drawing.Size(($formwidth - 108), ($formheight - 32))
@@ -158,7 +131,7 @@ Function New-SanityCheckForm {
 	$Button.Add_Click({ $script:exit = $true })
 	$Form.Controls.Add($Button)
 	#$Form.CancelButton = $Button
-	
+
 	# Okay Button
 	$Button = New-Object System.Windows.Forms.Button
 	$Button.Location = New-Object System.Drawing.Size(($formwidth - 216), ($formheight - 32))
@@ -167,7 +140,7 @@ Function New-SanityCheckForm {
 	$Button.Add_Click({ $script:sanityChecked = $true; $script:exit = $true })
 	$Form.Controls.Add($Button)
 	#$Form.AcceptButton = $Button
-	
+
 	return $Form
 }
 
@@ -178,15 +151,15 @@ param(
 )
 	$formwidth = $Form.ClientRectangle.Width
 	$formheight = $Form.ClientRectangle.Height
-	
+
 	# Define Cell Templates
 	$dgvTextCell = New-Object System.Windows.Forms.DataGridViewTextBoxCell
 	$dgvTextCell.Style.BackColor = [System.Drawing.Color]::White
-	
+
 	$dgvCheckBoxCell = New-Object System.Windows.Forms.DataGridViewCheckBoxCell
 	$dgvCheckBoxCell.Style.BackColor = [System.Drawing.Color]::White
-	
-	# Create a Data Grid 
+
+	# Create a Data Grid
 	$dgv = New-Object System.Windows.Forms.DataGridView
 	$dgv.Name = "Result List"
 	$dgv.Location = New-Object System.Drawing.Size(20,20)
@@ -205,7 +178,7 @@ param(
 	$dgvColumn.SortMode = [System.Windows.Forms.DataGridViewColumnSortMode]::Automatic
 	#$dgvColumn.set_ReadOnly($true)
 	$dgv.Columns.Add($dgvColumn) | Out-Null
-	 
+
 	$dgvColumn = New-Object System.Windows.Forms.DataGridViewColumn
 	$dgvColumn.Name = "Name"
 	$dgvColumn.DataPropertyName = "Name"
@@ -215,7 +188,7 @@ param(
 	$dgvColumn.SortMode = [System.Windows.Forms.DataGridViewColumnSortMode]::Automatic
 	#$dgvColumn.set_ReadOnly($true)
 	$dgv.Columns.Add($dgvColumn) | Out-Null
-	 
+
 	$dgvColumn = New-Object System.Windows.Forms.DataGridViewColumn
 	$dgvColumn.Name = "Folder"
 	$dgvColumn.DataPropertyName = "Folder"
@@ -225,7 +198,7 @@ param(
 	$dgvColumn.SortMode = [System.Windows.Forms.DataGridViewColumnSortMode]::Automatic
 	$dgvColumn.set_ReadOnly($true)
 	$dgv.Columns.Add($dgvColumn) | Out-Null
-	
+
 	$dgvColumn = New-Object System.Windows.Forms.DataGridViewColumn
 	$dgvColumn.Name = "Library"
 	$dgvColumn.DataPropertyName = "Library"
@@ -235,7 +208,7 @@ param(
 	$dgvColumn.SortMode = [System.Windows.Forms.DataGridViewColumnSortMode]::Automatic
 	$dgvColumn.set_ReadOnly($true)
 	$dgv.Columns.Add($dgvColumn) | Out-Null
-	 
+
 	$dgvColumn = New-Object System.Windows.Forms.DataGridViewColumn
 	$dgvColumn.Name = "Query"
 	$dgvColumn.DataPropertyName = "Query"
@@ -245,7 +218,7 @@ param(
 	$dgvColumn.SortMode = [System.Windows.Forms.DataGridViewColumnSortMode]::Automatic
 	$dgvColumn.set_ReadOnly($true)
 	$dgv.Columns.Add($dgvColumn) | Out-Null
-	 
+
 	$dgvColumn = New-Object System.Windows.Forms.DataGridViewCheckBoxColumn
 	$dgvColumn.Name = "Valid"
 	$dgvColumn.DataPropertyName = "Valid"
@@ -266,7 +239,7 @@ param(
 	$dgvColumn.SortMode = [System.Windows.Forms.DataGridViewColumnSortMode]::Automatic
 	$dgvColumn.set_ReadOnly($true)
 	$dgv.Columns.Add($dgvColumn) | Out-Null
-	 
+
 	$dgv.Sort($dgv.Columns["Name"], [System.ComponentModel.ListSortDirection]::Ascending)
 	$dgv.AutoResizeColumns()
 
@@ -277,7 +250,7 @@ param(
 				$dgv.Rows[$_.RowIndex].ErrorText = "AppID can only contain digits"
 				$_.Cancel = $true
 			}
-			
+
 			$folderName = ($matchTable | Where-Object {$_.AppID -eq $id}).Folder
 			if ( ($id -ne -1) -and ($folderName -ne $null) -and ($dgv.Rows.SharedRow($_.RowIndex).Cells["Folder"].Value -ne $folderName) ) {
 				$dgv.Rows[$_.RowIndex].ErrorText = "AppID is already in list (Folder: $($folderName))"
@@ -286,14 +259,14 @@ param(
 		}
 		elseif ($dgv.Columns[$_.ColumnIndex].Name -eq "Name") {
 			$name = $_.FormattedValue
-			
+
 			$folderName = ($matchTable | Where-Object {$_.Name -eq $name}).Folder
 			if ( ($name -ne "????") -and ($folderName -ne $null) -and ($dgv.Rows.SharedRow($_.RowIndex).Cells["Folder"].Value -ne $folderName ) ) {
 				$dgv.Rows[$_.RowIndex].ErrorText = "AppName is already in list (Folder: $($folderName))"
 				$_.Cancel = $true
 			}
 		}
-		
+
 	})
 
 	$dgv.Add_CellEndEdit({
@@ -302,8 +275,8 @@ param(
 			$id = $dgv.Rows.SharedRow($_.RowIndex).Cells["AppID"].Value
 			$appinfo = ($steamAppList | Where-Object {$_.appID -eq $id})
 			if ($appinfo -ne $null) {
-				$dgv.Rows.SharedRow($_.RowIndex).Cells["Name"].Value = $appinfo.Name	
-			} else { 
+				$dgv.Rows.SharedRow($_.RowIndex).Cells["Name"].Value = $appinfo.Name
+			} else {
 				$dgv.Rows.SharedRow($_.RowIndex).Cells["Name"].Value = "????"
 				$dgv.Rows.SharedRow($_.RowIndex).Cells["Valid"].Value = $false
 			}
@@ -314,17 +287,17 @@ param(
 			$name = $dgv.Rows.SharedRow($_.RowIndex).Cells["Name"].Value
 			$appinfo = ($steamAppList | Where-Object {$_.Name -eq $name})
 			if ($appinfo -ne $null) {
-				$dgv.Rows.SharedRow($_.RowIndex).Cells["AppID"].Value = $appinfo.AppID	
-			} else { 
+				$dgv.Rows.SharedRow($_.RowIndex).Cells["AppID"].Value = $appinfo.AppID
+			} else {
 				$dgv.Rows.SharedRow($_.RowIndex).Cells["AppID"].Value = -1
 				$dgv.Rows.SharedRow($_.RowIndex).Cells["Valid"].Value = $false
 			}
 			$dgv.Rows[$_.RowIndex].ErrorText = [System.String]::Empty
 		}
 	})
-	
+
 	$Form.Controls.Add($dgv) | Out-Null
-	
+
 	return $dgv
 }
 
@@ -377,7 +350,7 @@ ForEach ($path in Get-LibraryFolders)
 	{
 		Write-Log -InputObject "Additional Steam library found in '$path'"
 	}
-	
+
 	[array]$steamLibraries += $path
 }
 
@@ -399,7 +372,7 @@ $disclaimer = [System.String]::Empty
 if ($IncludeGamesNotOwned -eq $false) {
 	# Set the disclaimer for future warnings
 	$disclaimer = " in games owned by local users"
-	
+
 	# Get games owned by local users
 	Write-Log -InputObject "Loading AppIDs for games owned by Local Users..."
 	$libraryIDs = @()
@@ -420,7 +393,7 @@ if ($IncludeGamesNotOwned -eq $false) {
 		}
 	}
 	Write-Log -InputObject "... $($libraryIDs.count) IDs enumerated"
-	
+
 	# Filter games to owned only
 	Write-Log -InputObject "Filtering Apps to owned only... (this may take a minute or two)"
 	$mysteamapplist = $steamAppList | Where-Object { $_.appid -in $libraryIDs }
@@ -439,6 +412,23 @@ $installedSoftware = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVe
 # Get installed steam app info from existing acf files
 $appLookup = Get-InstalledSteamApps
 
+# Build a table to store relevant data
+$matchTable = New-Object System.Data.DataTable
+$newColumn = $matchTable.Columns.Add("AppID")
+$newColumn.DataType = [System.Int32]
+$newColumn = $matchTable.Columns.Add("Name")
+$newColumn.DataType = [System.String]
+$newColumn = $matchTable.Columns.Add("Folder")
+$newColumn.DataType = [System.String]
+$newColumn = $matchTable.Columns.Add("Library")
+$newColumn.DataType = [System.String]
+$newColumn = $matchTable.Columns.Add("Query")
+$newColumn.DataType = [System.String]
+$newColumn = $matchTable.Columns.Add("Valid")
+$newColumn.DataType = [System.Boolean]
+
+$matchTable.BeginLoadData()
+
 ForEach ($steamLibrary in $steamLibraries) {
 	# Get Folders
 	Write-Log -InputObject "Getting install directories from $($steamLibrary)\SteamApps\Common ..."
@@ -446,27 +436,10 @@ ForEach ($steamLibrary in $steamLibraries) {
 	$folders = Get-ChildItem "$($steamLibrary)\SteamApps\Common\" | Where { Test-Path "$($_.Fullname)\*" } | Select-Object -Property Name
 	Write-Log -InputObject "... $($folders.count) directories enumerated"
 
-	# Build a table to store relevant data
-	$matchTable = New-Object System.Data.DataTable
-	$newColumn = $matchTable.Columns.Add("AppID")
-	$newColumn.DataType = [System.Int32]
-	$newColumn = $matchTable.Columns.Add("Name")
-	$newColumn.DataType = [System.String]
-	$newColumn = $matchTable.Columns.Add("Folder")
-	$newColumn.DataType = [System.String]
-	$newColumn = $matchTable.Columns.Add("Library")
-	$newColumn.DataType = [System.String]
-	$newColumn = $matchTable.Columns.Add("Query")
-	$newColumn.DataType = [System.String]
-	$newColumn = $matchTable.Columns.Add("Valid")
-	$newColumn.DataType = [System.Boolean]
-	#endregion
-
 	#region Data matching
 	$remaining = $folders.name
 	$unmatched = @()
 	$lastMatchedCount = 0
-	$matchTable.BeginLoadData()
 
 	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	Write-Log -InputObject "Trying AppID Lookup table ..."
@@ -515,16 +488,16 @@ ForEach ($steamLibrary in $steamLibraries) {
 		{
 			$steamInstallDir = "$($steamLibrary)\SteamApps\Common\$folder"
 			$softwareDisplayName = $installedSoftware | Where { $_.InstallLocation -eq $steamInstallDir	} | Select -ExpandProperty DisplayName
-			
+
 			$apps = ($mysteamapplist | Where { $_.name -eq $softwareDisplayName })
-			
+
 			if ($apps -ne $null)
 			{
 				$definitiveMatch = $false
 				foreach ($app in $apps)
 				{
 					$path = "$($steamLibrary)\SteamApps\appmanifest_$($steamApp.AppID).acf"
-					
+
 					if ((Test-Path $path) -eq $true) {
 						$acf = ConvertFrom-VDF (Get-Content $path)
 						if ($acf.AppState.InstallDir -eq $folder) {
@@ -554,7 +527,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 				}
 			}
 		}
-		
+
 		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
 		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
@@ -661,7 +634,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
 		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	}
-	
+
 	if ($unmatched.Count -gt 0)
 	{
 		$lastMatchedCount = $matchTable.Rows.count
@@ -730,7 +703,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
 		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	}
-	
+
 	if ($unmatched.Count -gt 0)
 	{
 		$lastMatchedCount = $matchTable.Rows.count
@@ -810,7 +783,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) missing app manifest(s) ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
 		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	}
-	
+
 	if ($unmatched.Count -gt 0)
 	{
 		$lastMatchedCount = $matchTable.Rows.count
@@ -879,13 +852,12 @@ ForEach ($steamLibrary in $steamLibraries) {
 		Write-Log -InputObject "... query complete. $($matchTable.Rows.count - $lastMatchedCount) matched ($($matchTable.Rows.count) total), $($unmatched.count) unmatched"
 		Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	}
-	
+
 	ForEach ($folder in $unmatched) {
 		Write-Log -InputObject "Folder '$($folder)' could not be easily matched$($disclaimer). Adding to sanity check for manual data entry."
 		$matchTable.LoadDataRow(@(-1, "????", $folder, $steamLibrary, "Not Matched", $false), $true) | Out-Null
 	}
 }
-
 
 $matchTable.EndLoadData()
 
@@ -913,7 +885,7 @@ if ($matchTable.Rows.Count -gt 0)
 		Start-Sleep -Milliseconds 20
 		[System.Windows.Forms.Application]::DoEvents() | Out-Null
 	}
-	 
+
 	$form.Close()
 	$form.Dispose()
 }
@@ -932,17 +904,17 @@ if ($sanityChecked -eq $true) {
 		if ($row.Valid -eq $true) {
 			if ($row.AppID -eq -1) {
 				Write-Log -InputObject "App manifest was not created for '$($row.Folder)' No AppID found for Name '$($row.Name)'$($disclaimer)."
-			} 
+			}
 			elseif ($row.Name -eq "????") {
 				Write-Log -InputObject "App manifest was not created for '$($row.Folder)' No Name found for AppID '$($row.AppID)'$($disclaimer)."
 			} else {
-				New-ACF -AppID $row.AppID -AppName $row.Name -SteamLibrary $row.Library -AppFolder $row.Folder
+				Write-Acf -AppID $row.AppID -AppName $row.Name -SteamLibrary $row.Library -AppFolder $row.Folder
 			}
 		}
 	}
 	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 	Write-Log -InputObject "App Manifests created. Please restart Steam client to validate."
-	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"	
+	Write-Log -InputObject "----------------------------------------------------------------------------------------------------"
 }
 
 #endregion

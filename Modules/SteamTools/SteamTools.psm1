@@ -1,25 +1,25 @@
 Function ConvertFrom-VDF {
-<# 
-.Synopsis 
+<#
+.Synopsis
     Reads a Valve Data File (VDF) formatted string into a custom object.
 
-.Description 
+.Description
     The ConvertFrom-VDF cmdlet converts a VDF-formatted string to a custom object (PSCustomObject) that has a property for each field in the VDF string. VDF is used as a textual data format for Valve software applications, such as Steam.
 
 .Parameter InputObject
-    Specifies the VDF strings to convert to PSObjects. Enter a variable that contains the string, or type a command or expression that gets the string. 
+    Specifies the VDF strings to convert to PSObjects. Enter a variable that contains the string, or type a command or expression that gets the string.
 
-.Example 
+.Example
     $vdf = ConvertFrom-VDF -InputObject (Get-Content ".\SharedConfig.vdf")
 
-    Description 
-    ----------- 
+    Description
+    -----------
     Gets the content of a VDF file named "SharedConfig.vdf" in the current location and converts it to a PSObject named $vdf
 
-.Inputs 
+.Inputs
     System.String
 
-.Outputs 
+.Outputs
     PSCustomObject
 
 
@@ -46,7 +46,7 @@ Function ConvertFrom-VDF {
             continue
         }
         #Case: ParentKey
-        '^\t*"(\S+)"$' { 
+        '^\t*"(\S+)"$' {
             $element = New-Object -TypeName PSObject
             Add-Member -InputObject $parent -MemberType NoteProperty -Name $Matches[1] -Value $element
             continue
@@ -78,30 +78,28 @@ Function ConvertFrom-VDF {
 
 Function ConvertTo-VDF
 {
-<# 
-.Synopsis 
+<#
+.Synopsis
     Converts a custom object into a Valve Data File (VDF) formatted string.
 
-.Description 
+.Description
     The ConvertTo-VDF cmdlet converts any object to a string in Valve Data File (VDF) format. The properties are converted to field names, the field values are converted to property values, and the methods are removed.
 
 .Parameter InputObject
     Specifies PSObject to be converted into VDF strings.  Enter a variable that contains the object. You can also pipe an object to ConvertTo-Json.
 
-.Example 
+.Example
     ConvertTo-VDF -InputObject $VDFObject | Out-File ".\SharedConfig.vdf"
 
-    Description 
-    ----------- 
+    Description
+    -----------
     Converts the PS object to VDF format and pipes it into "SharedConfig.vdf" in the current directory
 
-.Inputs 
+.Inputs
     PSCustomObject
 
-.Outputs 
+.Outputs
     System.String
-
-
 #>
     param
     (
@@ -115,10 +113,10 @@ Function ConvertTo-VDF
         $Depth = 0
     )
     $output = [string]::Empty
-    
+
     foreach ( $property in ($InputObject.psobject.Properties) ) {
         switch ($property.TypeNameOfValue) {
-            "System.String" { 
+            "System.String" {
                 $output += ("`t" * $Depth) + "`"" + $property.Name + "`"`t`t`"" + $property.Value + "`"`n"
                 break
             }
@@ -140,12 +138,58 @@ Function ConvertTo-VDF
     return $output
 }
 
+Function New-ACF {
+    param(
+        [Parameter(Position=0, Mandatory=$true)]
+        [int]$AppID
+        ,
+        [Parameter(Position=1, Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string[]]$AppName
+        ,
+        [Parameter(Position=2, Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string[]]$AppFolder
+    )
+
+        $acf = @"
+"AppState"
+{
+	"appid"		"$($AppID)"
+	"Universe"		"1"
+	"name"		"$($AppName)"
+	"StateFlags"		"2"
+	"installdir"		"$($AppFolder)"
+	"LastUpdated"		"0"
+	"UpdateResult"		"0"
+	"SizeOnDisk"		"0"
+	"buildid"		"0"
+	"LastOwner"		"76561197970761367"
+	"BytesToDownload"		"0"
+	"BytesDownloaded"		"0"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"UserConfig"
+	{
+		"language"		"english"
+	}
+	"InstalledDepots"
+	{
+	}
+	"MountedDepots"
+	{
+	}
+}
+"@
+    return $acf
+}
+
 Function Get-SteamPath {
-<# 
-.Synopsis 
+<#
+.Synopsis
 	Gets the steam directory from the registry and resolves it to it's actual name as displayed in explored
 
-.Outputs 
+.Outputs
     The exact name of the steam install directory
 #>
 	return (Get-Item HKCU:\Software\Valve\Steam\).GetValue("SteamPath") | Resolve-Path | Get-Item | Select -ExpandProperty Fullname
@@ -170,43 +214,43 @@ param(
 Function Get-LibraryFolders()
 {
 <#
-.Synopsis 
+.Synopsis
 	Retrieves library folder paths from .\SteamApps\libraryfolders.vdf
 .Description
 	Reads .\SteamApps\libraryfolders.vdf to find the paths of all the library folders set up in steam
-.Example 
+.Example
 	$libraryFolders = Get-LibraryFolders
-	Description 
-	----------- 
+	Description
+	-----------
 	Retrieves a list of the library folders set up in steam
 #>
 	$steamPath = Get-SteamPath
-	
+
 	$vdfPath = "$($steamPath)\SteamApps\libraryfolders.vdf"
-	
+
 	[array]$libraryFolderPaths = @()
-	
+
 	if (Test-Path $vdfPath)
 	{
 		$libraryFolders = ConvertFrom-VDF (Get-Content $vdfPath -Encoding UTF8) | Select -ExpandProperty libraryfolders
-		
+
 		$libraryFolderIds = $libraryFolders | Get-Member -MemberType NoteProperty | Select -ExpandProperty Name
-		
+
 		ForEach ($libraryId in $libraryFolderIds)
 		{
 			$libraryFolder = $libraryFolders.($libraryId)
-			
+
 			$libraryFolderPaths += $libraryFolder.path | Resolve-Path
 		}
 	}
-	
+
 	return $libraryFolderPaths
 }
 
 Function Get-InstalledSteamApps()
 {
 	<#
-.Synopsis 
+.Synopsis
 	Gets information about installed steam apps from the *.acf files in each library
 .Description
 	Loops through each libary as found in <steam root>\SteamApps\libraryfolders.vdf and reads all the *.acf files in each.
