@@ -414,18 +414,12 @@ $appLookup = Get-InstalledSteamApps
 
 # Build a table to store relevant data
 $matchTable = New-Object System.Data.DataTable
-$newColumn = $matchTable.Columns.Add("AppID")
-$newColumn.DataType = [System.Int32]
-$newColumn = $matchTable.Columns.Add("Name")
-$newColumn.DataType = [System.String]
-$newColumn = $matchTable.Columns.Add("Folder")
-$newColumn.DataType = [System.String]
-$newColumn = $matchTable.Columns.Add("Library")
-$newColumn.DataType = [System.String]
-$newColumn = $matchTable.Columns.Add("Query")
-$newColumn.DataType = [System.String]
-$newColumn = $matchTable.Columns.Add("Valid")
-$newColumn.DataType = [System.Boolean]
+$matchTable.Columns.Add("AppID", 	[System.Int32])   | Out-Null
+$matchTable.Columns.Add("Name", 	[System.String])  | Out-Null
+$matchTable.Columns.Add("Folder", 	[System.String])  | Out-Null
+$matchTable.Columns.Add("Library", 	[System.String])  | Out-Null
+$matchTable.Columns.Add("Query", 	[System.String])  | Out-Null
+$matchTable.Columns.Add("Valid", 	[System.Boolean]) | Out-Null
 
 $matchTable.BeginLoadData()
 
