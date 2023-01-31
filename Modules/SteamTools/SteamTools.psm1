@@ -61,7 +61,7 @@ Function ConvertFrom-VDF {
         #Case: Closing ParentKey Scope
         '^\t*}$' {
             $depth--
-            $parent = $chain.($depth - 1)
+            $parent = $chain[$depth - 1]
             $element = $parent
             $chain.Remove($depth)
             continue
@@ -192,7 +192,7 @@ Function Get-SteamPath {
 .Outputs
     The exact name of the steam install directory
 #>
-	return (Get-Item HKCU:\Software\Valve\Steam\).GetValue("SteamPath") | Resolve-Path | Get-Item | Select -ExpandProperty Fullname
+	return (Get-Item HKCU:\Software\Valve\Steam\).GetValue("SteamPath") | Resolve-Path | Get-Item | Select-Object -ExpandProperty Fullname
 }
 
 Function Get-SteamID64 {
@@ -232,9 +232,9 @@ Function Get-LibraryFolders()
 
 	if (Test-Path $vdfPath)
 	{
-		$libraryFolders = ConvertFrom-VDF (Get-Content $vdfPath -Encoding UTF8) | Select -ExpandProperty libraryfolders
+		$libraryFolders = ConvertFrom-VDF (Get-Content $vdfPath -Encoding UTF8) | Select-Object -ExpandProperty libraryfolders
 
-		$libraryFolderIds = $libraryFolders | Get-Member -MemberType NoteProperty | Select -ExpandProperty Name
+		$libraryFolderIds = $libraryFolders | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name
 
 		ForEach ($libraryId in $libraryFolderIds)
 		{

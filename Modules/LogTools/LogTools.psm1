@@ -1,4 +1,4 @@
-function Write-LogHeader { 
+function Write-LogHeader {
 	param (
 		[Parameter(Position=0, Mandatory=$true)]
 		[System.String]$InputObject
@@ -27,7 +27,7 @@ function Write-Log {
 		[System.String]$InputObject
 		,
 		[Parameter(Mandatory=$false)]
-		[ValidateSet("Error", "Warning", "Standard", "Verbose", "Debug")] 
+		[ValidateSet("Error", "Warning", "Standard", "Verbose", "Debug")]
 		[System.String]$MessageLevel = "Standard"
 	)
 	$symbol = switch ($MessageLevel) {
@@ -37,7 +37,7 @@ function Write-Log {
 		"Verbose" 	{ "+" }
 		"Debug" 	{ "?" }
 	}
-	
+
 	switch ($MessageLevel) {
 		"Error" 	{$foregroundColour = "Red";						$backgroundColour = "Black"}
 		"Warning"   {$foregroundColour = "Yellow";					$backgroundColour = "Black"}
@@ -60,7 +60,7 @@ function Write-Log {
 			Write-Host $InputObject -ForegroundColor $foregroundColour -BackgroundColor $backgroundColour
 		}
 	}
-	
+
 }
 
 function Set-LogPath {
@@ -82,4 +82,3 @@ function Set-LogLevel {
 
 $defaultForegroundColour = (Get-Host).UI.RawUI.ForegroundColor
 $defaultBackgroundColour = (Get-Host).UI.RawUI.BackgroundColor
- 

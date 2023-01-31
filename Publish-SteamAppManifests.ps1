@@ -358,7 +358,7 @@ ForEach ($path in Get-LibraryFolders)
 Write-Log -InputObject "Loading app info from Steam Store..."
 try {
 	$appListResponse = Invoke-RestMethod "http://api.steampowered.com/ISteamApps/GetAppList/v0002/"
-	$steamAppList = $appListResponse.applist.apps | Where { -not [String]::IsNullOrWhiteSpace($_.name) }
+	$steamAppList = $appListResponse.applist.apps | Where-Object { -not [String]::IsNullOrWhiteSpace($_.name) }
 }
 catch {
 	Write-LogFooter "Execution failed - $($_.Exception)"
@@ -375,13 +375,13 @@ if ($IncludeGamesNotOwned -eq $false) {
 
 	# Get games owned by local users
 	Write-Log -InputObject "Loading AppIDs for games owned by Local Users..."
-	$libraryIDs = @()
+	$libraryIDs = [System.Collections.Generic.SortedSet[int]]::new()
 	ForEach ($user in (Get-ChildItem "$($steamPath)\userdata" | Where-Object {$_.BaseName -ne "0"})) {
 		try {
 			$steamUserId = Get-SteamID64 -SteamID3 ($user.BaseName.ToInt32($null))
 			[xml]$xmlLibrary = Invoke-RestMethod "http://steamcommunity.com/profiles/$steamUserId/games?tab=all&xml=1"
 			if ($xmlLibrary.gamesList.error -eq $null) {
-				$libraryIDs += $xmlLibrary.gamesList.games.game.appID | Where-Object {$_ -notin $libraryIDs}
+				$xmlLibrary.gamesList.games.game.appID | ForEach-Object { $libraryIDs.Add($_) | Out-Null }
 			} else {
 				$errortext = $xmlLibrary.gamesList.error."#cdata-section"
 				$username = $xmlLibrary.gamesList.steamID."#cdata-section"
@@ -407,7 +407,7 @@ if ($IncludeGamesNotOwned -eq $false) {
 #$mysteamapplist = Import-CSV ".\mysteamapplist.csv"
 
 # Get info about installed software from the registry
-$installedSoftware = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Select DisplayName, InstallLocation | Where { $_.DisplayName -and $_.InstallLocation }
+$installedSoftware = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* | Select-Object DisplayName, InstallLocation | Where-Object { $_.DisplayName -and $_.InstallLocation }
 
 # Get installed steam app info from existing acf files
 $appLookup = Get-InstalledSteamApps
@@ -427,7 +427,7 @@ ForEach ($steamLibrary in $steamLibraries) {
 	# Get Folders
 	Write-Log -InputObject "Getting install directories from $($steamLibrary)\SteamApps\Common ..."
 	# Select all folders that aren't empty
-	$folders = Get-ChildItem "$($steamLibrary)\SteamApps\Common\" | Where { Test-Path "$($_.Fullname)\*" } | Select-Object -Property Name
+	$folders = Get-ChildItem "$($steamLibrary)\SteamApps\Common\" | Where-Object { Test-Path "$($_.Fullname)\*" } | Select-Object -Property Name
 	Write-Log -InputObject "... $($folders.count) directories enumerated"
 
 	#region Data matching
@@ -481,9 +481,9 @@ ForEach ($steamLibrary in $steamLibraries) {
 		foreach ($folder in $remaining)
 		{
 			$steamInstallDir = "$($steamLibrary)\SteamApps\Common\$folder"
-			$softwareDisplayName = $installedSoftware | Where { $_.InstallLocation -eq $steamInstallDir	} | Select -ExpandProperty DisplayName
+			$softwareDisplayName = $installedSoftware | Where-Object { $_.InstallLocation -eq $steamInstallDir	} | Select-Object -ExpandProperty DisplayName
 
-			$apps = ($mysteamapplist | Where { $_.name -eq $softwareDisplayName })
+			$apps = ($mysteamapplist | Where-Object { $_.name -eq $softwareDisplayName })
 
 			if ($apps -ne $null)
 			{
@@ -913,4 +913,11 @@ if ($sanityChecked -eq $true) {
 
 #endregion
 
-Write-LogFooter -InputObject "Script Successful! $($unmatched.count) folders could not be matched - check unmatched.log for a list"
+if ($unmatched.count -eq 0)
+{
+	Write-LogFooter -InputObject "Script Successful! $($unmatched.count) folders could not be matched - check unmatched.log for a list"
+}
+else
+{
+	Write-LogFooter "Script Successful! All folders matched"
+}

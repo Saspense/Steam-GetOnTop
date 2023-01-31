@@ -129,7 +129,6 @@ $dgv.add_DragOver({
 })
 
 $dgv.add_DragDrop({
-	$global:derp = $_
 	$clientPoint = $dgv.PointToClient((New-Object System.Drawing.Point($_.X,$_.Y)))
 	$script:rowIndexForDrop = $dgv.HitTest($clientPoint.X, $clientPoint.Y).RowIndex;
 
