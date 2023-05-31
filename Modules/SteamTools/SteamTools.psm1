@@ -192,7 +192,7 @@ Function Get-SteamPath {
 .Outputs
     The exact name of the steam install directory
 #>
-	return (Get-Item HKCU:\Software\Valve\Steam\).GetValue("SteamPath") | Resolve-Path | Get-Item | Select-Object -ExpandProperty Fullname
+	return (Get-Item HKCU:\Software\Valve\Steam\).GetValue("SteamPath") | Get-Item | Select-Object -ExpandProperty Fullname
 }
 
 Function Get-SteamID64 {
