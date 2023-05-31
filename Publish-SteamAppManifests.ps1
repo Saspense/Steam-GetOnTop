@@ -346,7 +346,7 @@ Write-Log -InputObject "Steam is installed in '$steamPath'"
 
 ForEach ($path in Get-LibraryFolders)
 {
-	if ($path -ne $steamPath)
+	if ($path -notlike $steamPath)
 	{
 		Write-Log -InputObject "Additional Steam library found in '$path'"
 	}
@@ -396,7 +396,7 @@ if ($IncludeGamesNotOwned -eq $false) {
 
 	# Filter games to owned only
 	Write-Log -InputObject "Filtering Apps to owned only... (this may take a minute or two)"
-	$mysteamapplist = $steamAppList | Where-Object { $_.appid -in $libraryIDs }
+	$mysteamapplist = $steamAppList | Where-Object -Property appid -In $libraryIDs
 	Write-Log -InputObject "... Done!"
 } else {
 	$mysteamapplist = $steamAppList
